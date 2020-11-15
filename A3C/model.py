@@ -2,7 +2,7 @@ import gym
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from utils import network_update
+from utils import record, network_update
 
 UPDATE_GLOBAL_ITER = 5
 
@@ -122,16 +122,14 @@ class Worker(mp.Process):
                     buffer_s, buffer_a, buffer_r = [], [], []
 
                     if done:
+                        record(self.g_epoch,
+                               self.g_epr,
+                               self.res_queue,
+                               epoch_reward,
+                               self.name)
                         break
 
                 state = next_state
                 total_step += 1
 
         self.res_queue.put(None)
-
-
-
-
-
-
-
