@@ -1,2 +1,2 @@
 # DeepReinforcementLearning
-Implementation of classical Deep Reinforcement Learning Algorithm
+Implementation of classic Deep Reinforcement Learning Algorithm
