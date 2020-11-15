@@ -1,10 +1,10 @@
 import gym
 import torch
-import torch.nn as nn
-from torch.nn import functional as F
 import torch.multiprocessing as mp
+import torch.nn as nn
+from utils import network_update
 
-UPDATE_GLOBAL_ITER = 10
+UPDATE_GLOBAL_ITER = 5
 
 
 class AC_Network(nn.Module):
@@ -82,7 +82,9 @@ class Worker(mp.Process):
                  name,
                  max_step=3000):
 
+        super(Worker, self).__init__()
         self.name = "w%02d" % name
+
         self.g_epoch, self.g_epr, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = global_net, optimizer
         self.local = AC_Network(n_state, n_action)
@@ -109,7 +111,15 @@ class Worker(mp.Process):
                 buffer_r.append(reward)
 
                 if total_step % UPDATE_GLOBAL_ITER == 0 or done:
-                    # TODO : update the center network
+                    # TODO : update the center network and update the local network
+                    network_update(self.gnet,
+                                   self.opt,
+                                   self.lnet,
+                                   next_state,
+                                   done,
+                                   buffer_s,
+                                   buffer_a,
+                                   buffer_r)
                     buffer_s, buffer_a, buffer_r = [], [], []
 
                     if done:
