@@ -10,7 +10,7 @@ def network_update(gnet,
                    states,
                    actions,
                    rewards,
-                   gamma=0.99):
+                   gamma=0.95):
     if done:
         run_q = 0
     else:
@@ -19,7 +19,6 @@ def network_update(gnet,
         run_q = run_q.squeeze(0).data.numpy()[0]
 
     q_t = []
-    N = len(states)
 
     for reward in rewards[::-1]:
         run_q = run_q * gamma + reward
@@ -36,7 +35,7 @@ def network_update(gnet,
     loss.backward()
 
     for l_param, g_param in zip(lnet.parameters(), gnet.parameters()):
-        g_param._grad = l_param.grad()
+        g_param._grad = l_param.grad
 
     optimizer.step()
     lnet.load_state_dict(gnet.state_dict())
@@ -49,10 +48,9 @@ def record(global_epoch, global_ep_r, res_queue, reward, name):
         if global_ep_r.value == 0:
             global_ep_r.value = reward
         else:
-            global_ep_r.value = global_ep_r * 0.99 + reward * 0.01
+            global_ep_r.value = global_ep_r.value * 0.99 + reward * 0.01
 
-    res_queue.push(global_ep_r.value)
+    res_queue.put(global_ep_r.value)
     print(name,
           " Epoch : {}".format(global_epoch.value),
           " reward : {}".format(global_ep_r.value))
-

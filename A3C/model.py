@@ -1,3 +1,5 @@
+from abc import ABC
+
 import gym
 import torch
 import torch.multiprocessing as mp
@@ -7,7 +9,7 @@ from utils import record, network_update
 UPDATE_GLOBAL_ITER = 5
 
 
-class AC_Network(nn.Module):
+class AC_Network(nn.Module, ABC):
 
     def __init__(self,
                  n_state,
@@ -80,7 +82,7 @@ class Worker(mp.Process):
                  global_ep_r,
                  res_queue,
                  name,
-                 max_step=3000):
+                 max_step=4000):
 
         super(Worker, self).__init__()
         self.name = "w%02d" % name
@@ -90,12 +92,12 @@ class Worker(mp.Process):
         self.local = AC_Network(n_state, n_action)
         self.max_step = max_step
 
-        self.env = gym.make('CartPole-v0').unwrapped
+        self.env = gym.make('CartPole-v0')
 
     def run(self):
         total_step = 1
 
-        while self.g_epoch.value() < self.max_step:
+        while self.g_epoch.value < self.max_step:
             state = self.env.reset()
             buffer_s, buffer_a, buffer_r = [], [], []
             epoch_reward = 0
@@ -109,7 +111,7 @@ class Worker(mp.Process):
                 buffer_a.append(action)
                 buffer_r.append(reward)
 
-                if total_step % UPDATE_GLOBAL_ITER == 0 or done:
+                if done or total_step % UPDATE_GLOBAL_ITER == 0:
                     # TODO : update the center network and update the local network
                     network_update(self.gnet,
                                    self.opt,
