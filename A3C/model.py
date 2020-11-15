@@ -1,20 +1,26 @@
+import gym
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import torch.multiprocessing as mp
+
+UPDATE_GLOBAL_ITER = 10
+
 
 class AC_Network(nn.Module):
 
-    def __init__(self, n_state,
-                       n_actions,
-                       hidden=128):
+    def __init__(self,
+                 n_state,
+                 n_action,
+                 hidden=128):
 
         super(AC_Network, self).__init__()
         self.n_state = n_state
-        self.n_actions = n_actions
+        self.n_actions = n_action
 
         self.policy = nn.Sequential(*[nn.Linear(n_state, hidden),
                                       nn.Tanh(),
-                                      nn.Linear(hidden, n_actions),
+                                      nn.Linear(hidden, n_action),
                                       nn.Softmax(dim=1)])
 
         self.value = nn.Sequential(*[nn.Linear(n_state, hidden),
@@ -24,27 +30,35 @@ class AC_Network(nn.Module):
         self.distributions = torch.distributions.Categorical
 
     def forward(self, states):
-
-        logits = self.policy(states)
+        prob = self.policy(states)
         values = self.value(states)
 
-        return logits, values
+        return prob, values
 
     def choose_action(self, state):
-
+        """
+        :param state:  should be a 2d tensor
+        :return: the action chosen by sampling
+        """
         self.eval()
         prob, _ = self.forward(state)
 
         m = self.distributions(prob.data)
         return m.sample().numpy()[0]
 
-    def loss_fn(self, states, actions, v_t):
+    def loss_fn(self, states, actions, q_t):
+        """
+        :param states: 2d tensors by stacking the states in a whole batch
+        :param actions: actions chosen in a batch
+        :param q_t: the Q value calculated by the samples
+        :return: the actor_loss + critic_loss
+        """
 
         self.train()
         probs, values = self.forward(states)
 
         # critic loss
-        advantage = v_t - values
+        advantage = q_t - values
         critic_loss = advantage.pow(2)
 
         # actor loss
@@ -53,6 +67,58 @@ class AC_Network(nn.Module):
 
         total_loss = (actor_loss + critic_loss).mean()
         return total_loss
+
+
+class Worker(mp.Process):
+
+    def __init__(self,
+                 n_state,
+                 n_action,
+                 global_net,
+                 optimizer,
+                 global_ep,
+                 global_ep_r,
+                 res_queue,
+                 name,
+                 max_step=3000):
+
+        self.name = "w%02d" % name
+        self.g_epoch, self.g_epr, self.res_queue = global_ep, global_ep_r, res_queue
+        self.gnet, self.opt = global_net, optimizer
+        self.local = AC_Network(n_state, n_action)
+        self.max_step = max_step
+
+        self.env = gym.make('CartPole-v0').unwrapped
+
+    def run(self):
+        total_step = 1
+
+        while self.g_epoch.value() < self.max_step:
+            state = self.env.reset()
+            buffer_s, buffer_a, buffer_r = [], [], []
+            epoch_reward = 0
+
+            while True:
+                state = torch.FloatTensor(state).unsqueeze(0)
+                action = self.local.choose_action(state)
+                next_state, reward, info, done = self.env.step(action)
+
+                epoch_reward += reward
+                buffer_s.append(next_state)
+                buffer_a.append(action)
+                buffer_r.append(reward)
+
+                if total_step % UPDATE_GLOBAL_ITER == 0 or done:
+                    # TODO : update the center network
+                    buffer_s, buffer_a, buffer_r = [], [], []
+
+                    if done:
+                        break
+
+                state = next_state
+                total_step += 1
+
+        self.res_queue.put(None)
 
 
 
