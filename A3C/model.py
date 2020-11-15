@@ -101,12 +101,11 @@ class Worker(mp.Process):
             epoch_reward = 0
 
             while True:
-                state = torch.FloatTensor(state).unsqueeze(0)
-                action = self.local.choose_action(state)
+                action = self.local.choose_action(torch.FloatTensor(state).unsqueeze(0))
                 next_state, reward, info, done = self.env.step(action)
 
                 epoch_reward += reward
-                buffer_s.append(next_state)
+                buffer_s.append(state)
                 buffer_a.append(action)
                 buffer_r.append(reward)
 
@@ -114,7 +113,7 @@ class Worker(mp.Process):
                     # TODO : update the center network and update the local network
                     network_update(self.gnet,
                                    self.opt,
-                                   self.lnet,
+                                   self.local,
                                    next_state,
                                    done,
                                    buffer_s,
