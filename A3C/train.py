@@ -1,4 +1,5 @@
 import gym
+import torch
 from model import AC_Network, Worker
 from sharedAdam import SharedAdam
 import torch.multiprocessing as mp
@@ -6,6 +7,24 @@ import matplotlib.pyplot as plt
 
 env = gym.make('CartPole-v0')
 n_state, n_action = env.observation_space.shape[0], env.action_space.n
+
+def test(model, test_epoch=20):
+    for i in range(test_epoch):
+        state = env.reset()
+        total_step = 0
+        while True:
+            action = model.choose_action(torch.FloatTensor(state).unsqueeze(0))
+            next_state, r_, done, _ = env.step(action)
+
+            total_step += 1
+            if done:
+                print("In test epoch {} : reward {}".format(i, total_step))
+                break
+
+            state = next_state
+
+    env.close()
+
 
 if __name__ == "__main__":
     gnet = AC_Network(n_state, n_action)
@@ -40,4 +59,6 @@ if __name__ == "__main__":
     plt.ylabel("Moving average ep reward")
     plt.xlabel("step")
     plt.show()
+
+    test(gnet)
 
